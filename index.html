@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PTT 稿酬計算器</title>
+<meta name="description" content="依 2026/10 改版後的推測規則，估算 PTT 發文可獲得的 P 幣稿酬。">
+<style>
+  :root {
+    --bg: #f6f5f2; --card: #ffffff; --ink: #1d1d1f; --muted: #6b6b70; --line: #e2e0da;
+    --accent: #0b6e4f; --accent-soft: #e3f1eb; --warn: #9a5b00; --warn-soft: #fbf0dd;
+    --off: #9b988f; --off-bg: #f1efea; --off-row: #e4e0d6; --mono: ui-monospace, "Cascadia Mono", Consolas, "Noto Sans Mono CJK TC", monospace;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --bg: #141416; --card: #1d1d20; --ink: #ececee; --muted: #9a9aa2; --line: #2f2f34;
+      --accent: #46c08f; --accent-soft: #173a2c; --warn: #f0b354; --warn-soft: #3a2c14; --off: #6c6c73; --off-bg: #232327; --off-row: #2c2c31;
+    }
+  }
+  :root[data-theme="dark"] {
+    --bg: #141416; --card: #1d1d20; --ink: #ececee; --muted: #9a9aa2; --line: #2f2f34;
+    --accent: #46c08f; --accent-soft: #173a2c; --warn: #f0b354; --warn-soft: #3a2c14; --off: #6c6c73; --off-bg: #232327; --off-row: #2c2c31;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink);
+         font: 15px/1.6 system-ui, -apple-system, "Segoe UI", "Noto Sans TC", "Microsoft JhengHei", sans-serif; }
+  header, main, footer { max-width: 1080px; margin: 0 auto; padding: 0 16px; }
+  header { padding-top: 28px; padding-bottom: 8px; }
+  h1 { font-size: 24px; margin: 0 0 4px; letter-spacing: .02em; }
+  .sub { color: var(--muted); margin: 0; font-size: 14px; }
+  main { display: flex; flex-direction: column; gap: 16px; padding-top: 16px; padding-bottom: 24px; }
+  .top { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 16px; align-items: start; }
+  @media (max-width: 820px) { .top { grid-template-columns: 1fr; } .result { position: static; } }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; }
+  label { display: block; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+  input, textarea { width: 100%; font: inherit; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+                    border-radius: 8px; padding: 8px 10px; }
+  input:focus, textarea:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
+  textarea { min-height: 360px; resize: vertical; font-family: var(--mono); font-size: 14px; line-height: 1.5; }
+  .row { display: grid; grid-template-columns: 1fr 160px; gap: 12px; margin-bottom: 12px; }
+  @media (max-width: 480px) { .row { grid-template-columns: 1fr; } }
+  .hint { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .result { position: sticky; top: 12px; align-self: start; display: flex; flex-direction: column; gap: 16px; }
+  .money { display: flex; align-items: baseline; gap: 8px; }
+  .money b { font-size: 56px; line-height: 1; color: var(--accent); font-variant-numeric: tabular-nums; }
+  .money span { font-size: 18px; color: var(--muted); }
+  .note { margin-top: 8px; padding: 8px 10px; border-radius: 8px; background: var(--warn-soft); color: var(--warn); font-size: 13px; }
+  .note:empty { display: none; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td { padding: 5px 0; border-bottom: 1px solid var(--line); }
+  td:last-child { text-align: right; font-weight: 600; }
+  tr.sum td { border-bottom: none; font-size: 16px; }
+  h2 { font-size: 15px; margin: 0 0 10px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+  .chip { font-family: var(--mono); font-size: 13px; background: var(--off-bg); border-radius: 6px; padding: 2px 8px; }
+  .chip i { font-style: normal; color: var(--muted); margin-left: 4px; }
+  .empty { color: var(--muted); font-size: 13px; }
+  .lines { font-family: var(--mono); font-size: 13px; line-height: 1.55; max-height: 460px; overflow: auto;
+           border: 1px solid var(--line); border-radius: 8px; padding: 8px 0; background: var(--bg); }
+  .ln { display: flex; gap: 8px; padding: 0 10px 0 8px; white-space: pre-wrap; word-break: break-all;
+        border-left: 3px solid var(--accent); }
+  .ln .t { flex: 1; min-width: 0; }
+  .ln.off { color: var(--off); background: var(--off-row); border-left-color: transparent; }
+  .ln .why { flex: none; align-self: center; font-family: system-ui, sans-serif; font-size: 11px; line-height: 1.4;
+             color: var(--muted); background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 0 6px; }
+  .legend { display: flex; gap: 16px; font-size: 12px; color: var(--muted); margin: -4px 0 10px; }
+  .legend span::before { content: ""; display: inline-block; width: 12px; height: 12px; vertical-align: -2px; margin-right: 6px; border-radius: 2px; }
+  .legend .on::before { background: var(--bg); border-left: 3px solid var(--accent); }
+  .legend .no::before { background: var(--off-row); }
+  .legend .k::before { display: none; }
+  .legend { flex-wrap: wrap; }
+  .url, .dup, .ns { color: var(--off); }
+  details { font-size: 14px; }
+  details summary { cursor: pointer; font-weight: 600; }
+  details li { margin: 4px 0; }
+  code { font-family: var(--mono); font-size: 13px; background: var(--off-bg); padding: 0 4px; border-radius: 4px; }
+  footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
+  .btns { display: flex; gap: 8px; margin-top: 8px; }
+  button { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
+           border-radius: 8px; padding: 4px 12px; cursor: pointer; }
+  button:hover { border-color: var(--accent); }
+</style>
+</head>
+<body>
+<header>
+  <h1>PTT 稿酬計算器</h1>
+  <p class="sub">貼上文章，即時估算發文可獲得的 P 幣。依 2026/10/22 之後的現行版本推測規則計算，非官方公式。</p>
+</header>
+
+<main>
+ <div class="top">
+  <section class="card">
+    <div class="row">
+      <div>
+        <label for="title">標題（判斷 [新聞]、[情報] 上限與 Fw: 轉錄）</label>
+        <input id="title" placeholder="例如：[問卦] 有沒有颱風假的八卦">
+      </div>
+      <div>
+        <label for="posts">今天已拿稿酬的篇數</label>
+        <input id="posts" type="number" min="0" step="1" value="0" inputmode="numeric">
+      </div>
+    </div>
+    <label for="text">內文（可整篇貼上，簽名檔、發信站、推文、引用會自動排除）</label>
+    <textarea id="text" spellcheck="false" placeholder="把文章內容貼在這裡…"></textarea>
+    <div class="hint">「今天已拿稿酬的篇數」是今天 0:00 之後，在這篇之前發出、而且有拿到稿酬的文章數，每篇扣 3P。拿 0P 的文章不算。</div>
+    <div class="btns"><button id="clear" type="button">清空</button><button id="sample" type="button">範例</button></div>
+  </section>
+
+  <section class="result">
+    <div class="card">
+      <div class="money"><b id="money">0</b><span>P</span></div>
+      <div class="note" id="note"></div>
+      <table style="margin-top:12px">
+        <tr><td>中文、全形字元</td><td id="cjk">0</td></tr>
+        <tr><td>英數詞</td><td id="ascii">0</td></tr>
+        <tr><td>總分（不同詞元 <span id="distinct">0</span> 個）</td><td id="score">0</td></tr>
+        <tr><td>基本稿酬 floor(總分 × 0.08)</td><td id="base">0</td></tr>
+        <tr><td>當日遞減</td><td id="penalty">0</td></tr>
+        <tr><td>標題分類上限</td><td id="cap">—</td></tr>
+        <tr class="sum"><td>估計稿酬</td><td id="money2">0 P</td></tr>
+      </table>
+    </div>
+    <div class="card">
+      <h2>超過 2 次而不計分的詞</h2>
+      <div class="chips" id="dropped"><span class="empty">沒有</span></div>
+    </div>
+  </section>
+ </div>
+
+  <section class="card">
+    <h2>計分範圍</h2>
+    <div class="legend"><span class="on">計分的行</span><span class="no">不計分的行（右側標示原因）</span><span class="k"><span class="dup">的</span> 第 3 次以後出現</span><span class="k"><span class="ns">123 ,. https://</span> 數字、半形符號、網址</span></div>
+    <div class="lines" id="lines"><div class="empty" style="padding:0 10px">貼上內文後會顯示</div></div>
+  </section>
+
+  <section class="card">
+    <details>
+      <summary>計算規則與限制</summary>
+      <ul>
+        <li><b>詞元</b>：每個非 ASCII 字元（中文、全形標點、日文假名…）是一個詞元，2 分。含字母的英數串（可含 <code>_</code>）是一個詞元，每字元 1 分，每詞最多 8 分；純數字不算。</li>
+        <li><b>去重</b>：每個不同的詞元最多算 2 次，超過的不計分。英數詞以完整的詞判斷是否相同。</li>
+        <li><b>不計分</b>：網址、半形符號、色碼控制碼、引用行（<code>: </code> 開頭）、所有 <code>※</code> 開頭的行（含看板的發文提醒範本）、內文第一個單獨 <code>--</code> 行之後（簽名檔）。上色的文字照常計分。</li>
+        <li><b>換算</b>：總分未滿 40 → 0P；否則 floor(總分 × 0.08)，上限 150P。</li>
+        <li><b>當日遞減</b>：每天 0:00 起算，之前每有一篇拿到稿酬的文章，扣 3P，最低保留 1P。</li>
+        <li><b>分類上限</b>：<code>[新聞]</code> 最多 5P、<code>[情報]</code> 最多 30P（回文不受限）；<code>Fw:</code> 轉錄沒有稿酬。</li>
+        <li><b>已知限制</b>：被刪除的文章仍會計入當日篇數。站方也可能再次調整規則。</li>
+        <li><b>改版過渡期</b>：PTT 更新程式後，已登入的連線會沿用舊版程式，直到下次重新登入為止。如果連線是在 2026/10/22 改版之前登入、一直沒有登出，發文會套用舊版算法（例如純數字也算分），那段期間發的文也不會計入新版的當日篇數。一般正常登入使用不受影響。</li>
+      </ul>
+    </details>
+  </section>
+</main>
+
+<footer>
+  規則以實際文章的稿酬反推（現行版本 410 篇當天首篇文章完全命中 404 篇），僅供參考。
+</footer>
+
+<script src="calc.js"></script>
+<script>
+(function () {
+  'use strict';
+  const $ = (id) => document.getElementById(id);
+  const esc = (s) => s.replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+  const store = {
+    get(k) { try { return localStorage.getItem(k); } catch (e) { return null; } },
+    set(k, v) { try { localStorage.setItem(k, v); } catch (e) { /* 無痕或停用儲存時忽略 */ } },
+  };
+
+  function render() {
+    const text = $('text').value, title = $('title').value;
+    const posts = Math.max(0, parseInt($('posts').value, 10) || 0);
+    const r = PttMoney.calc(text, title, posts);
+
+    $('money').textContent = r.money;
+    $('money2').textContent = r.money + ' P';
+    $('cjk').textContent = r.cjk;
+    $('ascii').textContent = r.ascii;
+    $('distinct').textContent = r.distinct;
+    $('score').textContent = r.score;
+    $('base').textContent = r.base + ' P';
+    $('penalty').textContent = r.base > 0 && posts > 0 ? `−${r.base - r.afterPenalty} P` : '0';
+    $('cap').textContent = r.cap === null ? '—' : r.cap + ' P';
+    $('note').textContent = r.note;
+
+    $('dropped').innerHTML = r.dropped.length
+      ? r.dropped.slice(0, 30).map((d) => `<span class="chip">${esc(d.token)}<i>×${d.count}</i></span>`).join('')
+      : '<span class="empty">沒有</span>';
+
+    if (!text) {
+      $('lines').innerHTML = '<div class="empty" style="padding:0 10px">貼上內文後會顯示</div>';
+    } else {
+      const segs = PttMoney.annotate(r.lines);
+      $('lines').innerHTML = r.lines.map((l, i) => {
+        const t = l.counted
+          ? segs[i].map((g) => g.kind === 'ok' ? esc(g.text) : `<span class="${g.kind}">${esc(g.text)}</span>`).join('') || ' '
+          : (esc(l.text) || ' ');
+        return `<div class="ln${l.counted ? '' : ' off'}"><span class="t">${t}</span>${l.counted ? '' : `<span class="why">${l.reason}</span>`}</div>`;
+      }).join('');
+    }
+    store.set('pttmoney.text', text); store.set('pttmoney.title', title); store.set('pttmoney.posts', String(posts));
+  }
+
+  const SAMPLE_TITLE = '[問卦] 颱風天大家都在做什麼？';
+  const SAMPLE = [
+    '如題',
+    '',
+    '今天放颱風假，外面風雨不大',
+    '在家打電動、追劇、叫外送',
+    'https://i.imgur.com/example.jpg',
+    '',
+    '有沒有八卦？',
+    '',
+    '--',
+    'Sent from JPTT on my iPhone',
+    '',
+    '--',
+    '※ 發信站: 批踢踢實業坊(ptt.cc), 來自: 1.2.3.4 (臺灣)',
+  ].join('\n');
+
+  $('text').value = store.get('pttmoney.text') || '';
+  $('title').value = store.get('pttmoney.title') || '';
+  $('posts').value = store.get('pttmoney.posts') || '0';
+  ['text', 'title', 'posts'].forEach((id) => $(id).addEventListener('input', render));
+  $('clear').addEventListener('click', () => { $('text').value = ''; $('title').value = ''; $('posts').value = '0'; render(); $('text').focus(); });
+  $('sample').addEventListener('click', () => { $('text').value = SAMPLE; $('title').value = SAMPLE_TITLE; render(); });
+  render();
+})();
+</script>
+</body>
+</html>
