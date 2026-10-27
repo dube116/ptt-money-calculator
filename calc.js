@@ -1,5 +1,5 @@
 /*
- * PTT 發文稿酬（P幣）估算 — 現行版本（2026/10/22 下午之後）的推測規則
+ * PTT 發文稿酬（P幣）估算 — 現行版本（2026/10/27 11:59 之後）的推測規則
  * 以唯讀 BBS 取得的實際稿酬反推；非官方公式，站方可能隨時調整。
  *
  * 瀏覽器與 Node.js 共用（Node 端用於和 Python 版逐篇比對）。
@@ -10,8 +10,8 @@
   const RULE = {
     cap: 2,            // 每個不同詞元最多計幾次
     asciiMax: 8,       // 每個英數詞最多算 8 分（去重看完整的詞）
-    ratio: 0.08,       // 分數 → P幣
-    minThresh: 40,     // 分數低於此值 → 0P
+    ratio: 0.1,        // 分數 → P幣（10/27 11:59 起；之前為 0.08）
+    minThresh: 0,      // 10/27 起實測無有效門檻（分數 10 以上即有 1P；之前為 40）
     maxMoney: 150,     // 單篇上限
     dailyPenalty: 3,   // 當天之前每有一篇拿到稿酬，扣幾 P
     postCapMin: 1,     // 扣完最低保留
@@ -63,7 +63,7 @@
   function tokenize(content) {
     const noUrl = content.replace(URL_RE, '');
     const toks = [];
-    for (const ch of noUrl) if (!isAscii(ch)) toks.push(ch);
+    for (const ch of noUrl) if (!isAscii(ch) && !(ch >= '０' && ch <= '９')) toks.push(ch);   // 全形數字不算
     const words = noUrl.match(/[A-Za-z0-9_]+/g) || [];
     for (const w of words) if (!/^[0-9_]+$/.test(w)) toks.push(w);
     return toks;
@@ -110,7 +110,7 @@
     const cap = titleCap(title);
     const money = cap === null ? afterPenalty : Math.min(afterPenalty, cap);
     let note = '';
-    if (st.score < RULE.minThresh) note = `分數未滿 ${RULE.minThresh}，沒有稿酬`;
+    if (base === 0 && st.total > 0) note = '分數未滿 10，沒有稿酬';
     return { ...r, base, afterPenalty, cap, money, note };
   }
 
@@ -134,7 +134,8 @@
       let pos = 0, m;
       const plain = (s) => {
         for (const ch of s) {
-          if (!isAscii(ch)) push(ch, hit(ch));
+          if (ch >= '０' && ch <= '９') push(ch, 'ns');   // 全形數字不算
+          else if (!isAscii(ch)) push(ch, hit(ch));
           else push(ch, /\s/.test(ch) ? 'ok' : 'ns');
         }
       };

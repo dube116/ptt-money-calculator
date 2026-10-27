@@ -84,7 +84,7 @@
 <body>
 <header>
   <h1>PTT 稿酬計算器</h1>
-  <p class="sub">貼上文章，即時估算發文可獲得的 P 幣。依 2026/10/22 之後的現行版本推測規則計算，非官方公式。</p>
+  <p class="sub">貼上文章，即時估算發文可獲得的 P 幣。依 2026/10/27 之後的現行版本推測規則計算，非官方公式。</p>
 </header>
 
 <main>
@@ -114,7 +114,7 @@
         <tr><td>中文、全形字元</td><td id="cjk">0</td></tr>
         <tr><td>英數詞</td><td id="ascii">0</td></tr>
         <tr><td>總分（不同詞元 <span id="distinct">0</span> 個）</td><td id="score">0</td></tr>
-        <tr><td>基本稿酬 floor(總分 × 0.08)</td><td id="base">0</td></tr>
+        <tr><td>基本稿酬 floor(總分 × 0.1)</td><td id="base">0</td></tr>
         <tr><td>當日遞減</td><td id="penalty">0</td></tr>
         <tr><td>標題分類上限</td><td id="cap">—</td></tr>
         <tr class="sum"><td>估計稿酬</td><td id="money2">0 P</td></tr>
@@ -129,7 +129,7 @@
 
   <section class="card">
     <h2>計分範圍</h2>
-    <div class="legend"><span class="on">計分的行</span><span class="no">不計分的行（右側標示原因）</span><span class="k"><span class="dup">的</span> 第 3 次以後出現</span><span class="k"><span class="ns">123 ,. https://</span> 數字、半形符號、網址</span></div>
+    <div class="legend"><span class="on">計分的行</span><span class="no">不計分的行（右側標示原因）</span><span class="k"><span class="dup">的</span> 第 3 次以後出現</span><span class="k"><span class="ns">123 １２３ ,. https://</span> 數字、半形符號、網址</span></div>
     <div class="lines" id="lines"><div class="empty" style="padding:0 10px">貼上內文後會顯示</div></div>
   </section>
 
@@ -137,21 +137,21 @@
     <details>
       <summary>計算規則與限制</summary>
       <ul>
-        <li><b>詞元</b>：每個非 ASCII 字元（中文、全形標點、日文假名…）是一個詞元，2 分。含字母的英數串（可含 <code>_</code>）是一個詞元，每字元 1 分，每詞最多 8 分；純數字不算。</li>
+        <li><b>詞元</b>：每個非 ASCII 字元（中文、全形標點、全形字母、日文假名…）是一個詞元，2 分；全形數字不算。含字母的英數串（可含 <code>_</code>）是一個詞元，每字元 1 分，每詞最多 8 分；純數字不算。</li>
         <li><b>去重</b>：每個不同的詞元最多算 2 次，超過的不計分。英數詞以完整的詞判斷是否相同。</li>
         <li><b>不計分</b>：網址、半形符號、色碼控制碼、引用行（<code>: </code> 開頭）、所有 <code>※</code> 開頭的行（含看板的發文提醒範本）、內文第一個單獨 <code>--</code> 行之後（簽名檔）。上色的文字照常計分。</li>
-        <li><b>換算</b>：總分未滿 40 → 0P；否則 floor(總分 × 0.08)，上限 150P。</li>
+        <li><b>換算</b>：floor(總分 × 0.1)，上限 150P。總分 10 以上（約 5 個不同的中文字）才有 1P。</li>
         <li><b>當日遞減</b>：每天 0:00 起算，之前每有一篇拿到稿酬的文章，扣 3P，最低保留 1P。</li>
         <li><b>分類上限</b>：<code>[新聞]</code> 最多 5P、<code>[情報]</code> 最多 30P（回文不受限）；<code>Fw:</code> 轉錄沒有稿酬。</li>
         <li><b>已知限制</b>：被刪除的文章仍會計入當日篇數。站方也可能再次調整規則。</li>
-        <li><b>改版過渡期</b>：PTT 更新程式後，已登入的連線會沿用舊版程式，直到下次重新登入為止。如果連線是在 2026/10/22 改版之前登入、一直沒有登出，發文會套用舊版算法（例如純數字也算分），那段期間發的文也不會計入新版的當日篇數。一般正常登入使用不受影響。</li>
+        <li><b>改版過渡期</b>：PTT 更新程式後，已登入的連線會沿用舊版程式，直到下次重新登入為止。如果連線是在 2026/10/27 11:59 之前登入、一直沒有登出，發文會套用舊版算法（比例 0.08、40 分門檻），更早的連線甚至連純數字也算分；舊版連線發的文也不會計入新版的當日篇數。一般正常登入使用不受影響。</li>
       </ul>
     </details>
   </section>
 </main>
 
 <footer>
-  規則以實際文章的稿酬反推（現行版本 410 篇當天首篇文章完全命中 404 篇），僅供參考。
+  規則以實際文章的稿酬反推（10/27 新版：當天首篇樣本扣掉仍在舊連線者後全部命中；當日遞減 111 篇命中 94 篇），僅供參考。
 </footer>
 
 <script src="calc.js"></script>
