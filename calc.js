@@ -1,5 +1,5 @@
 /*
- * PTT 發文稿酬（P幣）估算 — 現行版本（2026/10/27 11:59 之後）的推測規則
+ * PTT 發文稿酬（P幣）估算 — 現行版本（2026/11/01 約 05:00 之後）的推測規則
  * 以唯讀 BBS 取得的實際稿酬反推；非官方公式，站方可能隨時調整。
  *
  * 瀏覽器與 Node.js 共用（Node 端用於和 Python 版逐篇比對）。
@@ -9,16 +9,21 @@
 
   const RULE = {
     cap: 2,            // 每個不同詞元最多計幾次
-    asciiMax: 8,       // 每個英數詞最多算 8 分（去重看完整的詞）
-    ratio: 0.1,        // 分數 → P幣（10/27 11:59 起；之前為 0.08）
+    tokenW: 2,         // 每個詞元的分數（漢字、英數串都是 2 分；11/01 前英數每字元 1 分）
+    ratio: 0.05,       // 分數 → P幣，四捨五入（11/01 約 05:00 起；10/27~10/31 為 0.1 捨去）
     minThresh: 0,      // 10/27 起實測無有效門檻（分數 10 以上即有 1P；之前為 40）
     maxMoney: 150,     // 單篇上限
-    dailyPenalty: 3,   // 當天之前每有一篇拿到稿酬，扣幾 P
+    dailyPenalty: 3,   // 當天之前每有一篇實拿 5P 以上，扣幾 P（11/01 起；之前是有稿酬就算）
     postCapMin: 1,     // 扣完最低保留
     titleCaps: { '新聞': 5, '情報': 30 },
   };
 
   const isAscii = (ch) => ch.codePointAt(0) < 128;
+  // 只算漢字（假名、注音、全形標點符號都不算）；範圍與 Python 版 is_han 相同
+  const isHan = (ch) => {
+    const o = ch.codePointAt(0);
+    return (o >= 0x4E00 && o <= 0x9FFF) || (o >= 0x3400 && o <= 0x4DBF) || (o >= 0xF900 && o <= 0xFAFF) || (o >= 0x20000 && o <= 0x3134F);
+  };
   const isQuoteOrSystem = (ln) => {
     const l = ln.replace(/^ +/, '');
     return l.startsWith(': ') || l === ':' || l.startsWith('※');
@@ -63,13 +68,12 @@
   function tokenize(content) {
     const noUrl = content.replace(URL_RE, '');
     const toks = [];
-    for (const ch of noUrl) if (!isAscii(ch) && !(ch >= '０' && ch <= '９')) toks.push(ch);   // 全形數字不算
-    const words = noUrl.match(/[A-Za-z0-9_]+/g) || [];
-    for (const w of words) if (!/^[0-9_]+$/.test(w)) toks.push(w);
+    for (const ch of noUrl) if (isHan(ch)) toks.push(ch);
+    for (const w of noUrl.match(/[A-Za-z0-9_]+/g) || []) toks.push(w);   // 英數串（含純數字）
     return toks;
   }
 
-  const weightOf = (tok) => (isAscii(tok[0]) ? Math.min(tok.length, RULE.asciiMax) : 2);
+  const weightOf = () => RULE.tokenW;
 
   function scoreTokens(toks) {
     const cnt = new Map();
@@ -95,7 +99,7 @@
   /**
    * @param {string} text     文章內容（可含標頭、簽名檔、發信站、推文，會自動剔除）
    * @param {string} title    標題（判斷 Fw:、[新聞]、[情報]）
-   * @param {number} postsToday 當天（0:00 起）在這篇之前發出、且有拿到稿酬的篇數
+   * @param {number} postsToday 當天（0:00 起）在這篇之前發出、且實拿 5P 以上的篇數
    */
   function calc(text, title = '', postsToday = 0) {
     const lines = analyzeLines(text || '');
@@ -105,7 +109,7 @@
     if (title && /^\s*Fw:/.test(title)) {
       return { ...r, base: 0, afterPenalty: 0, cap: null, money: 0, note: '轉錄（Fw:）文章沒有稿酬' };
     }
-    const base = st.score < RULE.minThresh ? 0 : Math.min(RULE.maxMoney, Math.floor(st.score * RULE.ratio + 1e-9));
+    const base = st.score < RULE.minThresh ? 0 : Math.min(RULE.maxMoney, Math.floor(st.score * RULE.ratio + 0.5));
     const afterPenalty = base > 0 ? Math.max(RULE.postCapMin, base - RULE.dailyPenalty * Math.max(0, postsToday | 0)) : 0;
     const cap = titleCap(title);
     const money = cap === null ? afterPenalty : Math.min(afterPenalty, cap);
@@ -117,7 +121,7 @@
   /**
    * 把計分範圍內的每一行切成片段，供畫面標示：
    *   ok  = 計分        dup = 同一詞元第 3 次以後（不計分）
-   *   url = 網址         ns  = 純數字、半形符號（不計分）
+   *   url = 網址         ns  = 漢字以外的全形字元（假名、注音、標點…）、半形符號（不計分）
    * 詞元出現次數依文章順序跨行累計，與 scoreTokens 的去重結果一致。
    */
   function annotate(lines) {
@@ -134,15 +138,13 @@
       let pos = 0, m;
       const plain = (s) => {
         for (const ch of s) {
-          if (ch >= '０' && ch <= '９') push(ch, 'ns');   // 全形數字不算
-          else if (!isAscii(ch)) push(ch, hit(ch));
+          if (isHan(ch)) push(ch, hit(ch));
           else push(ch, /\s/.test(ch) ? 'ok' : 'ns');
         }
       };
       while ((m = re.exec(l.text))) {
         plain(l.text.slice(pos, m.index));
         if (m[1]) push(m[1], 'url');
-        else if (/^[0-9_]+$/.test(m[2])) push(m[2], 'ns');
         else push(m[2], hit(m[2]));
         pos = re.lastIndex;
       }
@@ -151,7 +153,7 @@
     });
   }
 
-  const api = { RULE, analyzeLines, tokenize, scoreTokens, calc, annotate };
+  const api = { RULE, isHan, analyzeLines, tokenize, scoreTokens, calc, annotate };
   if (typeof module !== 'undefined' && module.exports) module.exports = api;
   else root.PttMoney = api;
 })(typeof window !== 'undefined' ? window : globalThis);

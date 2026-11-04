@@ -84,7 +84,7 @@
 <body>
 <header>
   <h1>PTT 稿酬計算器</h1>
-  <p class="sub">貼上文章，即時估算發文可獲得的 P 幣。依 2026/10/27 之後的現行版本推測規則計算，非官方公式。</p>
+  <p class="sub">貼上文章，即時估算發文可獲得的 P 幣。依 2026/11/01 之後的現行版本推測規則計算，非官方公式。</p>
 </header>
 
 <main>
@@ -96,13 +96,13 @@
         <input id="title" placeholder="例如：[問卦] 有沒有颱風假的八卦">
       </div>
       <div>
-        <label for="posts">今天已拿稿酬的篇數</label>
+        <label for="posts">今天實拿 5P 以上的篇數</label>
         <input id="posts" type="number" min="0" step="1" value="0" inputmode="numeric">
       </div>
     </div>
     <label for="text">內文（可整篇貼上，簽名檔、發信站、推文、引用會自動排除）</label>
     <textarea id="text" spellcheck="false" placeholder="把文章內容貼在這裡…"></textarea>
-    <div class="hint">「今天已拿稿酬的篇數」是今天 0:00 之後，在這篇之前發出、而且有拿到稿酬的文章數，每篇扣 3P。拿 0P 的文章不算。</div>
+    <div class="hint">「今天實拿 5P 以上的篇數」是今天 0:00 之後，在這篇之前發出、而且實際拿到 5P 以上的文章數，每篇扣 3P。拿 4P 以下的文章不算。</div>
     <div class="btns"><button id="clear" type="button">清空</button><button id="sample" type="button">範例</button></div>
   </section>
 
@@ -111,10 +111,10 @@
       <div class="money"><b id="money">0</b><span>P</span></div>
       <div class="note" id="note"></div>
       <table style="margin-top:12px">
-        <tr><td>中文、全形字元</td><td id="cjk">0</td></tr>
+        <tr><td>漢字</td><td id="cjk">0</td></tr>
         <tr><td>英數詞</td><td id="ascii">0</td></tr>
         <tr><td>總分（不同詞元 <span id="distinct">0</span> 個）</td><td id="score">0</td></tr>
-        <tr><td>基本稿酬 floor(總分 × 0.1)</td><td id="base">0</td></tr>
+        <tr><td>基本稿酬 總分 × 0.05（四捨五入）</td><td id="base">0</td></tr>
         <tr><td>當日遞減</td><td id="penalty">0</td></tr>
         <tr><td>標題分類上限</td><td id="cap">—</td></tr>
         <tr class="sum"><td>估計稿酬</td><td id="money2">0 P</td></tr>
@@ -129,7 +129,7 @@
 
   <section class="card">
     <h2>計分範圍</h2>
-    <div class="legend"><span class="on">計分的行</span><span class="no">不計分的行（右側標示原因）</span><span class="k"><span class="dup">的</span> 第 3 次以後出現</span><span class="k"><span class="ns">123 １２３ ,. https://</span> 數字、半形符號、網址</span></div>
+    <div class="legend"><span class="on">計分的行</span><span class="no">不計分的行（右側標示原因）</span><span class="k"><span class="dup">的</span> 第 3 次以後出現</span><span class="k"><span class="ns">ぁㄅ，。 ,. https://</span> 漢字以外的全形字元、半形符號、網址</span></div>
     <div class="lines" id="lines"><div class="empty" style="padding:0 10px">貼上內文後會顯示</div></div>
   </section>
 
@@ -137,24 +137,24 @@
     <details>
       <summary>計算規則與限制</summary>
       <ul>
-        <li><b>詞元</b>：每個非 ASCII 字元（中文、全形標點、全形字母、日文假名…）是一個詞元，2 分；全形數字不算。含字母的英數串（可含 <code>_</code>）是一個詞元，每字元 1 分，每詞最多 8 分；純數字不算。</li>
+        <li><b>詞元</b>：每個漢字是一個詞元；每個英數串（英文字母、數字、<code>_</code> 連在一起的一串，純數字也算）也是一個詞元。每個詞元 2 分，不論長短。日文假名、注音、全形標點與符號、全形英數都不算（11/01 起；之前全形字元都算、英數詞按字數計分）。</li>
         <li><b>去重</b>：每個不同的詞元最多算 2 次，超過的不計分。英數詞以完整的詞判斷是否相同。</li>
         <li><b>不計分</b>：網址、半形符號、色碼控制碼、引用行（<code>: </code> 開頭）、所有 <code>※</code> 開頭的行（含看板的發文提醒範本）、內文第一個單獨 <code>--</code> 行之後（簽名檔）。上色的文字照常計分。</li>
-        <li><b>換算</b>：floor(總分 × 0.1)，上限 150P。總分 10 以上（約 5 個不同的中文字）才有 1P。</li>
-        <li><b>當日遞減</b>：每天 0:00 起算，之前每有一篇拿到稿酬的文章，扣 3P，最低保留 1P。</li>
+        <li><b>換算</b>：總分 × 0.05 四捨五入，上限 150P。總分 10 以上（約 5 個不同的中文字）才有 1P。2026/11/01 約 05:00 起；之前是 floor(總分 × 0.1)。</li>
+        <li><b>當日遞減</b>：每天 0:00 起算，之前每有一篇<b>實拿 5P 以上</b>的文章，扣 3P，最低保留 1P。實拿 4P 以下的文章不計入篇數，所以短文連發通常不會被扣（11/01 起；之前是有拿到稿酬就算）。</li>
         <li><b>分類上限</b>：<code>[新聞]</code> 最多 5P、<code>[情報]</code> 最多 30P（回文不受限）；<code>Fw:</code> 轉錄沒有稿酬。</li>
-        <li><b>已知限制</b>：被刪除的文章仍會計入當日篇數。站方也可能再次調整規則。</li>
-        <li><b>改版過渡期</b>：PTT 更新程式後，已登入的連線會沿用舊版程式，直到下次重新登入為止。如果連線是在 2026/10/27 11:59 之前登入、一直沒有登出，發文會套用舊版算法（比例 0.08、40 分門檻），更早的連線甚至連純數字也算分；舊版連線發的文也不會計入新版的當日篇數。一般正常登入使用不受影響。</li>
+        <li><b>已知限制</b>：被刪除的文章仍會計入當日篇數。直接貼新聞內文的文章，實拿常比計算少（可能有轉貼偵測）。發文後再編輯，稿酬仍以發文當下的內容計算。站方也可能再次調整規則。</li>
+        <li><b>改版過渡期</b>：PTT 更新程式後，已登入的連線會沿用舊版程式，直到下次重新登入為止。11/01 改版後仍有少數掛很久沒登出的連線，發文照舊拿 floor(總分 × 0.1)。一般正常登入使用不受影響。</li>
       </ul>
     </details>
   </section>
 </main>
 
 <footer>
-  規則以實際文章的稿酬反推（10/27 新版：當天首篇樣本扣掉仍在舊連線者後全部命中；當日遞減 111 篇命中 94 篇），僅供參考。
+  規則以實際文章的稿酬反推（11/01 新版：40 位作者、未編輯過的 789 篇中，782 篇的基本稿酬與實拿只差「3 的倍數」；當日遞減 450 篇命中 447 篇），僅供參考。
 </footer>
 
-<script src="calc.js?v=20261028"></script>
+<script src="calc.js?v=16008f16"></script>
 <script>
 (function () {
   'use strict';
