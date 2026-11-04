@@ -75,6 +75,9 @@
   details li { margin: 4px 0; }
   code { font-family: var(--mono); font-size: 13px; background: var(--off-bg); padding: 0 4px; border-radius: 4px; }
   footer { color: var(--muted); font-size: 12px; padding-bottom: 32px; }
+  footer .history { margin-top: 12px; }
+  footer .history ul { margin: 4px 0 0; padding-left: 18px; }
+  footer .history li { margin: 2px 0; }
   .btns { display: flex; gap: 8px; margin-top: 8px; }
   button { font: inherit; font-size: 13px; color: var(--ink); background: var(--bg); border: 1px solid var(--line);
            border-radius: 8px; padding: 4px 12px; cursor: pointer; }
@@ -152,6 +155,14 @@
 
 <footer>
   規則以實際文章的稿酬反推（11/01 新版：40 位作者、未編輯過的 789 篇中，782 篇的基本稿酬與實拿只差「3 的倍數」；當日遞減 450 篇命中 447 篇），僅供參考。
+  <div class="history">
+    <b>變更歷史</b>
+    <ul>
+      <li>2026/11/04　改用 11/01 起的新版規則：只算漢字與英數串（每個 2 分，純數字也算）、四捨五入；當日遞減只計實拿 5P 以上的文章。</li>
+      <li>2026/10/28　改用 10/27 起的新版規則：比例 0.1、取消 40 分門檻、全形數字不算；修正瀏覽器沿用舊版計算的問題。</li>
+      <li>2026/10/24　首次發佈（10/22 版規則：比例 0.08、40 分門檻、每篇遞減 3P）。</li>
+    </ul>
+  </div>
 </footer>
 
 <script src="calc.js?v=16008f16"></script>
