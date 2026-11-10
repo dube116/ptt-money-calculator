@@ -17,7 +17,7 @@
     postCapMin: 1,     // 扣完最低保留
     titleCaps: { '新聞': 5, '情報': 30 },
     capBeforePenalty: [5],   // 先套上限再扣遞減的上限值（[新聞]）
-    sigMaxLines: 10,         // 簽名檔區塊（兩條 -- 之間）最多幾行，超過就算內文
+    sigMaxLines: 10,         // 文末簽名檔（最後兩條 -- 之間）最多幾行，超過就視為沒有簽名檔
   };
 
   const isAscii = (ch) => ch.codePointAt(0) < 128;
@@ -51,16 +51,19 @@
       if (lines[i].startsWith('※ 發信站')) { end = i; break; }
     }
     for (let i = end; i < lines.length; i++) mark(i, '發信站與之後');
-    // 簽名檔：從結尾往回看，最後一條單獨的 -- 之後不算；再往前、和下一條 -- 之間不超過 sigMaxLines 行的
-    // 區塊也當簽名檔。作者在內文中用 -- 當分隔線、後面還有一大段時，那段仍算內文
+    // 簽名檔（單獨一行 -- 為分隔線）：文末是「-- / sigMaxLines 行以內 / --」→ 第一條 -- 之後都不算；
+    // 文末最後一段比這長（沒有簽名檔）→ 只有最後一條 -- 之後不算；兩條 -- 只夾一行的裝飾（文末那組除外）不當分隔線
     const dash = [];
     for (let i = i0; i < end; i++) if (lines[i].trim() === '--') dash.push(i);
+    const drop = new Set();
+    for (let j = 0; j < dash.length - 3; j++) {
+      if (!drop.has(dash[j]) && dash[j + 1] - dash[j] - 1 <= 1) { drop.add(dash[j]); drop.add(dash[j + 1]); }
+    }
+    const d = dash.filter((i) => !drop.has(i));
     let sigAt = end;
-    if (dash.length) {
-      sigAt = dash[dash.length - 1];
-      for (let j = dash.length - 2; j >= 0; j--) {
-        if (dash[j + 1] - dash[j] - 1 <= RULE.sigMaxLines) sigAt = dash[j]; else break;
-      }
+    if (d.length) {
+      const hasSig = d.length >= 2 && d[d.length - 1] - d[d.length - 2] - 1 <= RULE.sigMaxLines;
+      sigAt = hasSig ? d[0] : d[d.length - 1];
     }
     for (let i = sigAt; i < end; i++) mark(i, '簽名檔');
     // 引用行與 ※ 開頭的系統行
@@ -149,7 +152,7 @@
         const last = segs[segs.length - 1];
         if (last && last.kind === kind) last.text += text; else segs.push({ text, kind });
       };
-      const re = /(https?:\/\/\S+)|([A-Za-z0-9_]+)/g;
+      const re = /(https?:\/\/[!-~]+)|([A-Za-z0-9_]+)/g;
       let pos = 0, m;
       const plain = (s) => {
         for (const ch of s) {
@@ -160,7 +163,7 @@
       while ((m = re.exec(l.text))) {
         plain(l.text.slice(pos, m.index));
         if (m[1]) push(m[1], 'url');
-        else push(m[2], hit(m[2]));
+        else push(m[2], hit(m[2].toLowerCase()));
         pos = re.lastIndex;
       }
       plain(l.text.slice(pos));
