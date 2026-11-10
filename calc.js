@@ -16,6 +16,8 @@
     dailyPenalty: 3,   // 當天之前每有一篇實拿 5P 以上，扣幾 P（11/01 起；之前是有稿酬就算）
     postCapMin: 1,     // 扣完最低保留
     titleCaps: { '新聞': 5, '情報': 30 },
+    capBeforePenalty: [5],   // 先套上限再扣遞減的上限值（[新聞]）
+    sigMaxLines: 10,         // 簽名檔區塊（兩條 -- 之間）最多幾行，超過就算內文
   };
 
   const isAscii = (ch) => ch.codePointAt(0) < 128;
@@ -26,7 +28,7 @@
   };
   const isQuoteOrSystem = (ln) => {
     const l = ln.replace(/^ +/, '');
-    return l.startsWith(': ') || l === ':' || l.startsWith('※');
+    return l.startsWith(': ') || l === ':' || l.startsWith('※') || l.startsWith('>');   // > 開頭＝Markdown 式引用
   };
 
   /**
@@ -49,10 +51,16 @@
       if (lines[i].startsWith('※ 發信站')) { end = i; break; }
     }
     for (let i = end; i < lines.length; i++) mark(i, '發信站與之後');
-    // 內文中第一個單獨的 -- 行之後都視為簽名檔
+    // 簽名檔：從結尾往回看，最後一條單獨的 -- 之後不算；再往前、和下一條 -- 之間不超過 sigMaxLines 行的
+    // 區塊也當簽名檔。作者在內文中用 -- 當分隔線、後面還有一大段時，那段仍算內文
+    const dash = [];
+    for (let i = i0; i < end; i++) if (lines[i].trim() === '--') dash.push(i);
     let sigAt = end;
-    for (let i = i0; i < end; i++) {
-      if (lines[i].trim() === '--') { sigAt = i; break; }
+    if (dash.length) {
+      sigAt = dash[dash.length - 1];
+      for (let j = dash.length - 2; j >= 0; j--) {
+        if (dash[j + 1] - dash[j] - 1 <= RULE.sigMaxLines) sigAt = dash[j]; else break;
+      }
     }
     for (let i = sigAt; i < end; i++) mark(i, '簽名檔');
     // 引用行與 ※ 開頭的系統行
@@ -63,13 +71,14 @@
     return { lines: out, content };
   }
 
-  const URL_RE = /https?:\/\/\S+/g;
+  const URL_RE = /https?:\/\/[!-~]+/g;   // 遇到空白或非 ASCII 字元就結束（網址後緊接的中文仍計分）
 
   function tokenize(content) {
     const noUrl = content.replace(URL_RE, '');
     const toks = [];
     for (const ch of noUrl) if (isHan(ch)) toks.push(ch);
-    for (const w of noUrl.match(/[A-Za-z0-9_]+/g) || []) toks.push(w);   // 英數串（含純數字）
+    // 英數串（含純數字）；不分大小寫（Blk52 與 blk52 算同一個）
+    for (const w of noUrl.match(/[A-Za-z0-9_]+/g) || []) toks.push(w.toLowerCase());
     return toks;
   }
 
@@ -91,7 +100,10 @@
   }
 
   function titleCap(title) {
-    if (!title || /^\s*(R:|Re:|RE:)/.test(title)) return null;
+    if (!title) return null;
+    // 標題任何位置有 [新聞] 都算，回文 Re: [新聞] 也一樣（11/10 實測）
+    if (title.includes('[新聞]')) return RULE.titleCaps['新聞'];
+    if (/^\s*(R:|Re:|RE:)/.test(title)) return null;
     const m = title.match(/^\s*(?:Fw:\s*)?\[(.+?)\]/);
     return m && Object.prototype.hasOwnProperty.call(RULE.titleCaps, m[1].trim()) ? RULE.titleCaps[m[1].trim()] : null;
   }
@@ -107,15 +119,18 @@
     const st = scoreTokens(tokenize(lines.content));
     const r = { ...st, urls, lines: lines.lines, title: title || '', postsToday };
     if (title && /^\s*Fw:/.test(title)) {
-      return { ...r, base: 0, afterPenalty: 0, cap: null, money: 0, note: '轉錄（Fw:）文章沒有稿酬' };
+      return { ...r, base: 0, capped: 0, afterPenalty: 0, cap: null, money: 0, note: '轉錄（Fw:）文章沒有稿酬' };
     }
     const base = st.score < RULE.minThresh ? 0 : Math.min(RULE.maxMoney, Math.floor(st.score * RULE.ratio + 0.5));
-    const afterPenalty = base > 0 ? Math.max(RULE.postCapMin, base - RULE.dailyPenalty * Math.max(0, postsToday | 0)) : 0;
     const cap = titleCap(title);
-    const money = cap === null ? afterPenalty : Math.min(afterPenalty, cap);
+    // [新聞] 的 5P 上限先套再扣當日遞減；[情報] 的 30P 上限在遞減之後套（11/05 起實測）
+    const before = cap !== null && RULE.capBeforePenalty.includes(cap);
+    const capped = before ? Math.min(base, cap) : base;
+    const afterPenalty = capped > 0 ? Math.max(RULE.postCapMin, capped - RULE.dailyPenalty * Math.max(0, postsToday | 0)) : 0;
+    const money = cap !== null && !before ? Math.min(afterPenalty, cap) : afterPenalty;
     let note = '';
     if (base === 0 && st.total > 0) note = '分數未滿 10，沒有稿酬';
-    return { ...r, base, afterPenalty, cap, money, note };
+    return { ...r, base, capped, afterPenalty, cap, money, note };
   }
 
   /**
